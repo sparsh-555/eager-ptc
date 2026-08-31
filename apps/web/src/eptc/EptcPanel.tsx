@@ -28,6 +28,26 @@ function formatMs(ms: number): string {
   return (ms / 1000).toFixed(ms < 10000 ? 2 : 1) + " s";
 }
 
+type EptcEvidenceTotals = Pick<EptcPlan["totals"], "generationOverlapMs" | "speculationsLaunched" | "speculationsDiscarded" | "storeHits"> & {
+  retriedCalls?: number;
+  throttleEvents?: number;
+  minConcurrencyDuringRun?: number;
+};
+
+export function evidenceItems(totals: EptcEvidenceTotals): Array<[label: string, value: string]> {
+  const items: Array<[label: string, value: string]> = [
+    ["head start", formatMs(totals.generationOverlapMs)],
+    ["speculated", `${totals.speculationsLaunched} launched · ${totals.speculationsDiscarded} discarded`],
+    ["dedup", `${totals.storeHits} hits`],
+  ];
+
+  if ((totals.retriedCalls ?? 0) > 0) items.push(["retried", `${totals.retriedCalls} calls`]);
+  if ((totals.throttleEvents ?? 0) > 0) items.push(["throttled", `${totals.throttleEvents} events`]);
+  if ((totals.minConcurrencyDuringRun ?? 0) > 0) items.push(["concurrency floor", `${totals.minConcurrencyDuringRun}`]);
+
+  return items;
+}
+
 function outcomeColor(call: EptcCall): string {
   if (call.decision === "speculate" && call.outcome === "not_run") return "#b9781d";
   if (call.outcome === "used") return "#33906d";
@@ -310,6 +330,11 @@ export function EptcPanel({ agentId }: { agentId: string }) {
                 <div><span>speedup</span><strong>{selectedPlan.totals.speedup.toFixed(2)}×</strong></div>
                 {selectedPlan.totals.speculationsLaunched > 0 && <div><span>work done during generation</span><strong>{selectedPlan.totals.speculativeWorkDuringGenMs} ms</strong></div>}
               </div>
+              <ul className="eptc-evidence">
+                {evidenceItems(selectedPlan.totals as EptcEvidenceTotals).map(([label, value]) => (
+                  <li key={label} className="eptc-evidence-item">{label}: {value}</li>
+                ))}
+              </ul>
               <div className="eptc-chart-actions"><span>{selectedPlan.status} · {selectedPlan.calls.length} calls</span><button className="button button-ghost" onClick={() => void comparePlan()} disabled={running}>{running ? <Spinner /> : "Compare"}</button></div>
               <Waterfall plan={selectedPlan} layout={selectedLayout} selectedCallId={selectedCall?.id ?? null} onSelectCall={setSelectedCall} label={comparisonPlan ? "Original plan" : "Execution waterfall"} />
               {comparisonPlan && comparisonLayout && <Waterfall plan={comparisonPlan} layout={comparisonLayout} selectedCallId={selectedCall?.id ?? null} onSelectCall={setSelectedCall} label="Replay comparison" />}

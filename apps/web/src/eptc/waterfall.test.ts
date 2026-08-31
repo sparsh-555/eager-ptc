@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { evidenceItems } from "./EptcPanel";
 import { layoutWaterfall } from "./layout";
 import type { EptcPlan } from "../types";
 
@@ -109,5 +110,42 @@ describe("layoutWaterfall", () => {
   it("connects dependency edges to their source and target rows", () => {
     const layout = layoutWaterfall(planWith([call("source", 10, 40), call("target", 50, 80, { dependsOn: ["source"] })], { serialMs: 80 }), 1000);
     expect(layout.edges).toEqual([{ fromId: "source", toId: "target", fromRow: 0, toRow: 1, fromX: 500, toX: 625 }]);
+  });
+});
+
+describe("evidenceItems", () => {
+  it("always shows core evidence and includes conditional evidence only when recorded", () => {
+    expect(evidenceItems({
+      generationOverlapMs: 1250,
+      speculationsLaunched: 3,
+      speculationsDiscarded: 1,
+      storeHits: 2,
+      retriedCalls: 4,
+      throttleEvents: 5,
+      minConcurrencyDuringRun: 1,
+    })).toEqual([
+      ["head start", "1.25 s"],
+      ["speculated", "3 launched · 1 discarded"],
+      ["dedup", "2 hits"],
+      ["retried", "4 calls"],
+      ["throttled", "5 events"],
+      ["concurrency floor", "1"],
+    ]);
+  });
+
+  it("omits zero-value conditional evidence while retaining zero-value core evidence", () => {
+    expect(evidenceItems({
+      generationOverlapMs: 0,
+      speculationsLaunched: 0,
+      speculationsDiscarded: 0,
+      storeHits: 0,
+      retriedCalls: 0,
+      throttleEvents: 0,
+      minConcurrencyDuringRun: 0,
+    })).toEqual([
+      ["head start", "0 ms"],
+      ["speculated", "0 launched · 0 discarded"],
+      ["dedup", "0 hits"],
+    ]);
   });
 });

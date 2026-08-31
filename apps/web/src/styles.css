@@ -1105,6 +1105,22 @@ textarea:focus {
   letter-spacing: -0.04em;
 }
 
+.eptc-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.eptc-evidence-item + .eptc-evidence-item {
+  border-left: 1px solid var(--line);
+  padding-left: 20px;
+}
+
 .eptc-chart-actions {
   display: flex;
   align-items: center;
