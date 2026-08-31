@@ -121,12 +121,19 @@ describe("Eptc MCP", () => {
     const configured = await readFile(path.join(root, "config.toml"), "utf8");
     expect(configured).toContain("[mcp_servers.eptc]");
     expect(configured).toContain("url =");
+    expect(configured).toContain("env_http_headers");
+    expect(configured).toContain("X-EPTC-Agent-Id");
+    expect(configured).toContain("EPTC_AGENT_ID");
     expect(configured).toContain('bearer_token_env_var = "APP_AUTH_TOKEN"');
     expect(configured).not.toContain(token);
 
     const disabledRoot = await mkdtemp(path.join(tmpdir(), "eptc-mcp-disabled-"));
     temporaryDirectories.push(disabledRoot);
     await writeCodexConfig(loadConfig({ NODE_ENV: "test", CODEX_HOME: disabledRoot, EPTC_MCP_ENABLED: "false" }));
-    expect(await readFile(path.join(disabledRoot, "config.toml"), "utf8")).not.toContain("[mcp_servers.eptc]");
+    const disabledConfig = await readFile(path.join(disabledRoot, "config.toml"), "utf8");
+    expect(disabledConfig).not.toContain("[mcp_servers.eptc]");
+    expect(disabledConfig).not.toContain("env_http_headers");
+    expect(disabledConfig).not.toContain("X-EPTC-Agent-Id");
+    expect(disabledConfig).not.toContain("EPTC_AGENT_ID");
   });
 });

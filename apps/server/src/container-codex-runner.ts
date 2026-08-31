@@ -75,6 +75,8 @@ export function buildContainerRunArgs(
     "--env",
     "CODEX_HOME=/codex-home",
     "--env",
+    "EPTC_AGENT_ID=" + request.agentId,
+    "--env",
     "HOME=/tmp",
     "--env",
     "NO_COLOR=1",

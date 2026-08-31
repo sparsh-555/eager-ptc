@@ -60,4 +60,24 @@ describe("Container Codex runner", () => {
     expect(args.slice(-3)).toEqual(["resume", "thread-123", "continue"]);
     expect(args).not.toContain("keep-id");
   });
+
+  it("passes the requesting agent identity into the container environment", () => {
+    const config = loadConfig({
+      NODE_ENV: "test",
+      CODEX_HOME: "/tmp/codex-home",
+      RUNTIME_PROVIDER: "container",
+    });
+    const agentId = "agent-identity";
+    const args = buildContainerRunArgs(
+      {
+        agentId,
+        workspacePath: "/tmp/workspace",
+        prompt: "plan the work",
+        threadId: null,
+      },
+      config,
+    );
+
+    expect(args).toContain("EPTC_AGENT_ID=" + agentId);
+  });
 });

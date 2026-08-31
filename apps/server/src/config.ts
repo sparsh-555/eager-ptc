@@ -124,6 +124,7 @@ export async function writeCodexConfig(config: AppConfig): Promise<void> {
       ? [
           "[mcp_servers.eptc]",
           "url = " + JSON.stringify(config.eptcMcpUrl),
+          'env_http_headers = { "X-EPTC-Agent-Id" = "EPTC_AGENT_ID" }',
           ...(config.authToken ? ['bearer_token_env_var = "APP_AUTH_TOKEN"'] : []),
           "",
         ]
