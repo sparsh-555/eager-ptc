@@ -9,7 +9,7 @@
   <img alt="112 server + 10 web tests" src="https://img.shields.io/badge/tests-122%20passing-33906d?style=flat-square&labelColor=20211f">
   <img alt="TypeScript" src="https://img.shields.io/badge/typescript-5-6954d9?style=flat-square&labelColor=20211f">
   <img alt="Node 22+" src="https://img.shields.io/badge/node-22%2B-6954d9?style=flat-square&labelColor=20211f">
-  <img alt="median 3.27x" src="https://img.shields.io/badge/median-3.27%C3%97%20faster-33906d?style=flat-square&labelColor=20211f">
+  <img alt="median 2.19x end to end" src="https://img.shields.io/badge/median-2.19%C3%97%20end--to--end-33906d?style=flat-square&labelColor=20211f">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-33906d?style=flat-square&labelColor=20211f">
 </p>
 
@@ -105,7 +105,7 @@ to be taken.
 <sub>The indigo band is the model still generating; every bar begins inside it. The hatched strip is
 a projection, not measured work: the same calls laid end to end, starting where generation ends
 because without speculation nothing can run until the plan exists.
-<b>6,556 ms against 33,317 ms of work, with 11,910 ms of it executed during generation.</b></sub></p>
+<b>7.24 s end to end against 24.2 s sequential and 11.7 s parallel, with 16.9 s of tool work executed during generation.</b></sub></p>
 
 <table>
 <tr>
@@ -114,8 +114,7 @@ because without speculation nothing can run until the plan exists.
 </tr>
 <tr>
 <td><b>Compare replays the plan for real.</b> The hatched strip is arithmetic; this is a measured
-serial run on the same axis. Above, everything overlapping and done in 6,556 ms. Below, the same
-calls as a staircase taking 13,785 ms. The two serial figures differ because an agent turn is not
+serial run on the same axis. Above, everything overlapping. Below, the same calls as a staircase. The two serial figures differ because an agent turn is not
 deterministic in effort, which is exactly why the measured run is worth having.</td>
 <td><b>A held call names its reason and its line.</b> <code>notify</code> is registered as
 non-speculatable, so the gate refuses to start it early and says so, with the argument class, the
@@ -147,24 +146,42 @@ Together these took the usable window from **0.46 s to 8.82 s**.
 
 ## Measured results
 
-Five plan shapes, three repetitions each, n=15 per arm, against a live model.
+Three plan shapes, five repetitions each, n=15, against a live model. Times are end to end,
+from the request arriving to the last call finishing.
 
-| shape | scheduler alone | with speculation | eager marginal |
-|---|---|---|---|
-| fan-out (4 independent) | 3.16× | **4.94×** | 1.56× |
-| loop (3, unrolled) | 1.95× | **3.38×** | 1.74× |
-| mixed (3 + 1 dependent) | 2.14× | **3.27×** | 1.53× |
-| two independent | 1.71× | **2.73×** | 1.59× |
-| **median** | **1.86×** | **3.27×** | **1.6–1.8×** |
+| shape | sequential | parallel | eager | vs sequential | vs parallel |
+|---|---|---|---|---|---|
+| mixed (readFile + grep + 4 agents) | 26.0 s | 17.0 s | **12.0 s** | 2.19× | 1.40× |
+| fan-out (4 independent agents) | 17.5 s | 8.6 s | **6.9 s** | 2.67× | 1.25× |
+| chain (3 dependent calls) | 6.3 s | 6.3 s | **4.9 s** | 1.28× | 1.28× |
+| **median, all 15 runs** | | | | **2.19×** | **1.30×** |
 
-Median **1,104 ms** of critical-path head start and **4,079 ms** of tool work executed during
-generation.
+Ranges across the fifteen runs: 1.09–3.78× against sequential, 1.09–1.48× against parallel.
+Median non-overlapped execution latency — the work left exposed after generation ends — is
+**2,979 ms**.
 
-**Two results worth more than the median.** `fan-out-4` reached **4.94× on a four-call plan**
-— above the arithmetic ceiling of 4× for pure parallelism, which is only possible because work
-began before the plan finished being written. And on a **genuine dependency chain**, where
-concurrency can contribute exactly nothing and correctly reports **1.00×**, speculation still
-moved **2,208 ms** of work into the generation window.
+**Why two baselines.** *Sequential* is generation plus the sum of every call. *Parallel* is
+generation plus the longest call: tools concurrent with each other, but only starting once the
+model has stopped writing. Parallel is the honest comparison, because modern agent runtimes
+already dispatch a turn's tool calls concurrently. Eager is what this layer adds on top, by
+overlapping tools with the generation itself.
+
+That framing, and the `max(stream, max(tool))` model behind it, is the same one used by
+[CloudThinker's open eager-tools benchmark](https://github.com/cloudthinker-ai/eager-tools),
+which reports 1.20–1.50× against parallel across sixteen synthetic workloads, median 1.28×.
+The 1.30× median here is measured on real agent turns rather than a paced synthetic stream.
+
+**The shape that earns its place is the chain.** Three dependent calls, where concurrency can
+contribute nothing at all — sequential and parallel are within five milliseconds of each other —
+and the layer still returns 1.28×, entirely from starting the first call before the plan was
+finished being written.
+
+**What is deliberately not the headline.** An earlier version of this project divided the sum of
+call durations by the execution phase that follows generation. That denominator collapses when
+the calls finish inside the generation window, and on one unchanged goal it produced numbers from
+2.28× to 1118×. It measured whether the slowest call happened to overrun generation. The
+execution left exposed is now reported as a duration, where near-zero is the result rather than a
+divisor.
 
 ## Run it
 
