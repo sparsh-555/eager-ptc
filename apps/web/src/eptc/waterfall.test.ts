@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evidenceItems } from "./EptcPanel";
+import { comparisonTimes, evidenceItems } from "./EptcPanel";
 import { layoutWaterfall } from "./layout";
 import type { EptcPlan } from "../types";
 
@@ -116,6 +116,7 @@ describe("layoutWaterfall", () => {
 describe("evidenceItems", () => {
   it("always shows core evidence and includes conditional evidence only when recorded", () => {
     expect(evidenceItems({
+      wallClockMs: 100,
       generationOverlapMs: 1250,
       speculationsLaunched: 3,
       speculationsDiscarded: 1,
@@ -124,6 +125,7 @@ describe("evidenceItems", () => {
       throttleEvents: 5,
       minConcurrencyDuringRun: 1,
     })).toEqual([
+      ["left exposed", "100 ms"],
       ["head start", "1.25 s"],
       ["speculated", "3 launched · 1 discarded"],
       ["dedup", "2 hits"],
@@ -135,6 +137,7 @@ describe("evidenceItems", () => {
 
   it("omits zero-value conditional evidence while retaining zero-value core evidence", () => {
     expect(evidenceItems({
+      wallClockMs: 100,
       generationOverlapMs: 0,
       speculationsLaunched: 0,
       speculationsDiscarded: 0,
@@ -143,9 +146,42 @@ describe("evidenceItems", () => {
       throttleEvents: 0,
       minConcurrencyDuringRun: 0,
     })).toEqual([
+      ["left exposed", "100 ms"],
       ["head start", "0 ms"],
       ["speculated", "0 launched · 0 discarded"],
       ["dedup", "0 hits"],
     ]);
+  });
+});
+
+describe("comparisonTimes", () => {
+  it("computes eager calling comparisons from generation, serial, and call work", () => {
+    const plan = planWith([
+      call("a", 0, 8000),
+      call("b", 0, 4000),
+      call("c", 0, 4000),
+      call("d", 0, 4000),
+    ], { generationMs: 5000, serialMs: 20000, wallClockMs: 3000 });
+
+    expect(comparisonTimes(plan)).toMatchObject({
+      sequentialMs: 25000,
+      parallelMs: 13000,
+      eagerMs: 8000,
+      vsSequential: 3.125,
+      vsParallel: 1.625,
+    });
+  });
+
+  it("never returns infinite ratios when wall clock time is zero", () => {
+    const times = comparisonTimes(planWith([], { generationMs: 0, wallClockMs: 0 }));
+
+    expect(Number.isFinite(times.vsSequential)).toBe(true);
+    expect(Number.isFinite(times.vsParallel)).toBe(true);
+  });
+
+  it("uses generation time as parallel time when a plan has no calls", () => {
+    const plan = planWith([], { generationMs: 5000 });
+
+    expect(comparisonTimes(plan).parallelMs).toBe(5000);
   });
 });

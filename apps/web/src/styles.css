@@ -1116,6 +1116,12 @@ textarea:focus {
   font-size: 12px;
 }
 
+.eptc-compare-line {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .eptc-evidence-item + .eptc-evidence-item {
   border-left: 1px solid var(--line);
   padding-left: 20px;
