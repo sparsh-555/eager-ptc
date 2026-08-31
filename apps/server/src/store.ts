@@ -2,11 +2,12 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Database } from "./types.js";
 
-const emptyDatabase = (): Database => ({
+export const emptyDatabase = (): Database => ({
   version: 1,
   agents: [],
   messages: [],
   runs: [],
+  plans: [],
 });
 
 export class JsonStore {
@@ -23,6 +24,7 @@ export class JsonStore {
       if (parsed.version !== 1 || !Array.isArray(parsed.agents)) {
         throw new Error("Unsupported database format");
       }
+      parsed.plans ??= [];
       this.data = parsed;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {

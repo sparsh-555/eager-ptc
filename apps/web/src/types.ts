@@ -48,3 +48,49 @@ export interface SystemInfo {
   containerEngine: string | null;
   runtime: string;
 }
+
+export type EptcDecision = "speculate" | "defer" | "refuse";
+export type EptcOutcome = "used" | "failed" | "not_run";
+export type EptcReplayMode = "serial" | "concurrent";
+
+export interface EptcCall {
+  id: string;
+  tool: string;
+  decision: EptcDecision;
+  argClass: "literal" | "pure" | "tool" | "tainted";
+  reason: string;
+  dependsOn: string[];
+  outcome: EptcOutcome;
+  startedAt: string | number | null;
+  claimedAt: string | number | null;
+  endedAt: string | number | null;
+  workMs: number;
+  speculatedAtMs: number | null;
+  dedupedFrom: string | null;
+  sourceLoc: { line: number; column: number } | null;
+  workerAgentId: string | null;
+}
+
+export interface EptcPlan {
+  id: string;
+  agentId: string;
+  status: "running" | "completed" | "failed";
+  createdAt: string;
+  completedAt: string | null;
+  calls: EptcCall[];
+  error: string | null;
+  totals: {
+    wallClockMs: number;
+    serialMs: number;
+    speedup: number;
+    executionOverlapMs: number;
+    maxConcurrent: number;
+    storeHits: number;
+    storeMisses: number;
+    generationMs: number;
+    generationOverlapMs: number;
+    speculativeWorkDuringGenMs: number;
+    speculationsLaunched: number;
+    speculationsDiscarded: number;
+  };
+}

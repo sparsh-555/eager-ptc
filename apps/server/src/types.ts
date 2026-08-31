@@ -48,6 +48,68 @@ export interface Database {
   agents: Agent[];
   messages: Message[];
   runs: AgentRun[];
+  plans: PlanRecord[];
+}
+
+export interface CallRecord {
+  id: string;
+  tool: string;
+  occurrence: number;
+  decision: "speculate" | "defer" | "refuse";
+  argClass: "literal" | "pure" | "tool" | "tainted";
+  dependsOn: string[];
+  sourceLoc: { line: number; column: number } | null;
+  reason: string;
+  startedAt: string | null;
+  claimedAt: string | null;
+  endedAt: string | null;
+  workMs: number;
+  attempts: number;
+  retryReason: string | null;
+  retryWaitMs: number;
+  dedupedFrom: string | null;
+  speculatedAtMs: number | null;
+  outcome: "used" | "failed" | "not_run";
+  workerAgentId: string | null;
+  result: unknown | null;
+  error: string | null;
+}
+
+export interface PlanRecord {
+  id: string;
+  agentId: string;
+  status: "running" | "completed" | "failed";
+  createdAt: string;
+  completedAt: string | null;
+  calls: CallRecord[];
+  error: string | null;
+  request: {
+    calls?: Array<{ tool: string; args: unknown }> | undefined;
+    source?: string | undefined;
+  };
+  generation?: {
+    source: string;
+    rationale: string;
+  } | undefined;
+  totals: {
+    callCount: number;
+    wallClockMs: number;
+    serialMs: number;
+    speedup: number;
+    executionOverlapMs: number;
+    maxConcurrent: number;
+    storeHits: number;
+    storeMisses: number;
+    generationMs: number;
+    generationOverlapMs: number;
+    speculativeWorkDuringGenMs: number;
+    speculationsLaunched: number;
+    speculationsDiscarded: number;
+    retriedCalls: number;
+    throttleEvents: number;
+    minConcurrencyDuringRun: number;
+    concurrencyEvents: Array<{ atMs: number; from: number; to: number; reason: string }>;
+  };
 }
 
 export interface CreateAgentInput {

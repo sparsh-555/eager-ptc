@@ -1,4 +1,4 @@
-import type { Agent, AgentRun, Message, SystemInfo } from "./types";
+import type { Agent, AgentRun, Message, EptcPlan, EptcReplayMode, SystemInfo } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -78,4 +78,17 @@ export const api = {
       },
     ),
   run: (id: string) => request<{ run: AgentRun }>("/api/runs/" + id),
+  listPlans: (agentId: string) =>
+    request<{ plans: EptcPlan[] }>("/api/eptc/plans?agentId=" + encodeURIComponent(agentId)),
+  getPlan: (id: string) => request<{ plan: EptcPlan }>("/api/eptc/plans/" + id),
+  generatePlan: (agentId: string, goal: string, speculation: boolean) =>
+    request<{ plan: EptcPlan }>("/api/eptc/plans/generate", {
+      method: "POST",
+      body: JSON.stringify({ agentId, goal, speculation }),
+    }),
+  replayPlan: (id: string, mode: EptcReplayMode) =>
+    request<{ plan: EptcPlan }>("/api/eptc/plans/" + id + "/replay", {
+      method: "POST",
+      body: JSON.stringify({ mode }),
+    }),
 };

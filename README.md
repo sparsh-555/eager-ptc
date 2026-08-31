@@ -1,251 +1,257 @@
-# Volc Agent Launchpad
+<h1 align="center">Eager Programmatic Tool Calling</h1>
 
-A minimal Agent platform for three-day middleware hackathons. It provides Agent
-CRUD, a browser Playground, persistent workspaces, and Codex CLI backed by the
-Volcengine Ark Responses API.
+<p align="center">
+  <strong>Agents write a program that calls tools. This runs those calls before the program
+  finishes being written — and decides which ones are safe to start early.</strong>
+</p>
 
-Run it locally with Docker, Colima, or rootless Podman, or deploy it to
-Volcengine ECS.
+<p align="center">
+  <img alt="112 server + 7 web tests" src="https://img.shields.io/badge/tests-119%20passing-33906d?style=flat-square&labelColor=20211f">
+  <img alt="TypeScript" src="https://img.shields.io/badge/typescript-5-6954d9?style=flat-square&labelColor=20211f">
+  <img alt="Node 22+" src="https://img.shields.io/badge/node-22%2B-6954d9?style=flat-square&labelColor=20211f">
+  <img alt="median 3.27x" src="https://img.shields.io/badge/median-3.27%C3%97%20faster-33906d?style=flat-square&labelColor=20211f">
+  <img alt="MIT" src="https://img.shields.io/badge/license-MIT-33906d?style=flat-square&labelColor=20211f">
+</p>
 
-> [!WARNING]
-> This is a single-user proof of concept. It intentionally has no identity,
-> tracing, audit, or hardened sandbox middleware. Do not use production data or
-> credentials. See [SECURITY.md](SECURITY.md).
+---
 
-## Screenshots
+**Track 1 — Agent Launchpad.** The middleware capability built here is a coordination and
+reliability layer: it decides which of an agent's tool calls are safe to start before the plan
+that calls them has finished being written, runs those, and refuses the ones it cannot account
+for. It sits in the control plane and the Runtime path, between the agent and its tools, and
+every decision it makes is recorded with a reason and the line of source that caused it.
 
-### Agent Playground
+## The problem
 
-![Agent Playground showing lifecycle controls, starter prompts, and the Codex Runtime](docs/assets/playground.jpg)
+An agent doing real work makes several tool calls. Today they run one after another, even
+when nothing connects them — because the program that calls them does not start until the
+model has finished writing all of it, and then the calls fire in the order they were typed.
 
-### Create an Agent
+On this platform a single tool call is an entire agent turn. **I measured it at 66 seconds.**
+So a six-call plan takes about seven and a half minutes, and almost all of that is the
+platform sitting still, waiting on work it already had everything it needed to start.
 
-![Create Agent form with name, description, and workspace instructions](docs/assets/create-agent.jpg)
-
-## Features
-
-- React and TypeScript Web UI
-- Agent create, edit, start, stop, delete, and multi-turn chat
-- Fastify control plane with asynchronous Run state
-- Persistent Agent workspaces and Codex sessions
-- Disposable Docker, Colima, or Podman container for each local turn
-- Docker and Terraform deployment paths for Volcengine ECS
-
-## Requirements
-
-- Node.js 22+
-- npm 10+
-- Docker, Colima, or Podman
-- A Volcengine Ark API key and endpoint that supports the Responses API
-
-Codex CLI is included in the Runtime image and is not required on the host.
-
-## Local browser SOP
-
-### 1. Check the local tools
-
-Install Node.js 22+ and one supported container engine, then verify them:
-
-```bash
-node --version
-npm --version
-docker --version        # Docker Desktop, Docker Engine, or Colima
-podman --version        # Use this instead when running Podman
-```
-
-Only one container engine is required. Codex CLI is already included in the
-Runtime image.
-
-### 2. Clone the repository
-
-```bash
-git clone <repository-url> volc-agent-launchpad
-cd volc-agent-launchpad
-```
-
-Skip this step when already working from the repository root.
-
-### 3. Start the POC
-
-```bash
-ARK_API_KEY=your-ark-api-key \
-ARK_MODEL=ep-your-endpoint-id \
-npm run poc
-```
-
-The first run installs Node.js dependencies and builds the Runtime image. The
-script automatically selects Docker, Colima, or Podman.
-
-### 4. Open the browser
-
-Visit <http://localhost:3000>, or open it from the terminal:
-
-```bash
-open http://localhost:3000       # macOS
-xdg-open http://localhost:3000   # Linux desktop
-```
-
-In the Web UI:
-
-1. Select **Create Agent**.
-2. Enter a name, description, and workspace instructions.
-3. Select **Create Agent** again.
-4. Enter a task in the Playground, for example:
-
-   ```text
-   Create a TypeScript hello-world CLI, add a test, and run it.
-   ```
-
-The Agent can write files, run commands, and continue the same Codex session in
-later messages.
-
-### 5. Stop and resume
-
-Press `Ctrl+C` in the startup terminal. The script removes temporary Runtime
-containers but keeps Agent workspaces and conversations.
-
-- macOS state: `~/.volc-agent-launchpad/`
-- Linux state: `.local/`
-- Custom location: set `LOCAL_POC_DATA_ROOT`
-
-Run the same `npm run poc` command to continue later.
-
-### Select a specific container engine
-
-Force Podman when multiple engines are installed:
-
-```bash
-CONTAINER_ENGINE=podman \
-ARK_API_KEY=your-ark-api-key \
-ARK_MODEL=ep-your-endpoint-id \
-npm run poc
-```
-
-Colima uses `CONTAINER_ENGINE=docker` because it exposes the Docker CLI.
-
-For a clean Linux host, follow the
-[rootless Podman setup](docs/LOCAL_POC.md#rootless-podman-on-linux).
-
-## Docker Compose
-
-Create and edit the configuration:
-
-```bash
-./scripts/bootstrap-local.sh
-```
-
-Required values in `.env`:
-
-```dotenv
-ARK_API_KEY=your-ark-api-key
-ARK_MODEL=ep-your-endpoint-id
-APP_AUTH_TOKEN=replace-with-at-least-24-random-characters
-```
-
-Start the application:
-
-```bash
-docker compose up --build
-```
-
-Open <http://localhost:3000>. Stop it without deleting Agent data:
-
-```bash
-docker compose down
-```
-
-## Development
-
-```bash
-npm install
-cp .env.example .env
-npm install --global @openai/codex@0.111.0
-npm run dev
-```
-
-- Web UI: <http://localhost:5173>
-- API: <http://localhost:3000>
-
-Use local paths in `.env` when running outside Docker:
-
-```dotenv
-APP_DATA_DIR=.data
-AGENT_WORKSPACE_ROOT=workspaces
-CODEX_HOME=codex-home
-```
-
-## Deployment
-
-- [Existing Linux ECS with Docker](docs/DEPLOYMENT.md#existing-linux-ecs)
-- [Complete Volcengine environment with Terraform](docs/DEPLOYMENT.md#terraform-deployment)
-- [Local Docker, Colima, and Podman details](docs/LOCAL_POC.md)
-
-The existing-ECS script deploys from the current source tree:
-
-```bash
-cp .env.example .env.production
-./scripts/deploy-existing-ecs.sh .env.production
-```
-
-The Terraform path provisions VPC, subnet, security group, ECS, and EIP:
-
-```bash
-cp deploy/volcengine/terraform.tfvars.example \
-  deploy/volcengine/terraform.tfvars
-./scripts/deploy-volcengine.sh
-```
-
-## Configuration
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `ARK_API_KEY` | Required | Ark model API key. |
-| `ARK_MODEL` | Required | Responses-capable endpoint or model ID. |
-| `ARK_BASE_URL` | Beijing v3 endpoint | Ark OpenAI-compatible API URL. |
-| `APP_AUTH_TOKEN` | Empty on loopback | Shared demo token; use 24+ random characters remotely. |
-| `RUNTIME_PROVIDER` | `local-process` | `container` for disposable local Runtime containers. |
-| `CODEX_SANDBOX_MODE` | `workspace-write` | Codex inner sandbox mode. |
-| `CODEX_TIMEOUT_MS` | `600000` | Maximum duration of one turn. |
-| `LOCAL_POC_DATA_ROOT` | Platform-specific | Local metadata, workspace, and session directory. |
-
-See [.env.example](.env.example) for all Runtime and resource-limit options.
+Two different kinds of waiting, and this layer removes both.
 
 ## How it works
 
 ```mermaid
-flowchart LR
-    UI["React Web UI"] --> API["Fastify control plane"]
-    API --> Store["JSON metadata and Agent workspaces"]
-    API --> Runtime{"Runtime provider"}
-    Runtime -->|Local POC| Container["Disposable Docker / Colima / Podman container"]
-    Runtime -->|ECS profile| Codex["Codex CLI in application container"]
-    Container --> Ark["Volcengine Ark Responses API"]
-    Codex --> Ark
+flowchart TD
+    AGENT["Agent — calls plan(goal) as an MCP tool"]
+    GEN["Plan Generator<br/>streaming, reasoning off, calls-first"]
+    ANA["Analyzer — incremental"]
+    GATE{"Admission gate"}
+    SCHED["Scheduler + promise store"]
+    POOL["Worker Agent pool"]
+    LEDGER["Audit ledger"]
+
+    AGENT --> GEN
+    GEN -->|tokens, as they arrive| ANA
+    ANA -->|classified call| GATE
+    GATE -->|speculate| SCHED
+    GATE -->|defer / refuse + reason| LEDGER
+    SCHED -->|lease| POOL
+    POOL -->|result| SCHED
+    SCHED --> LEDGER
+    SCHED --> AGENT
+
+    classDef gen fill:#efecff,stroke:#6954d9,color:#20211f
+    classDef code fill:#e6f2ec,stroke:#33906d,color:#20211f
+    classDef io fill:#fbfaf7,stroke:#deddd6,color:#20211f
+    class GEN,POOL gen
+    class ANA,GATE,SCHED,STORE code
+    class AGENT,LEDGER io
 ```
 
-The first turn uses `codex exec`; later turns resume the stored Codex thread.
-Deleting an Agent archives its workspace under `workspaces/.deleted/`.
+<sub>**Indigo is generation. Green is executed work.** These are the app's own colours — in the
+waterfall, indigo is the band where the model is still writing and green is a call that ran.
+Everything green is deterministic code; the model writes the plan and never decides what is
+safe to start early.</sub>
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for component and extension
-boundaries.
+### The one rule the whole design rests on
 
-## Validation
+> **The model writes the plan. Nothing the model writes decides what is safe to run early.**
+
+The analyzer, the admission gate and the scheduler are pure functions over a parsed program.
+They are unit-testable without a model, they give the same answer every time, and a plan that
+tries to talk its way past them has nothing to talk to.
+
+That is also what makes the central guarantee testable: **the result must be identical whether
+speculation is on or off.** A corpus of thirteen plans is executed serially, concurrently, and
+speculatively — including under 30% injected provider faults — and the ordered results must
+match exactly or the build fails.
+
+## What it decides, per call
+
+The analyzer classifies every argument and takes the worst class. Unknown means tainted.
+
+| Decision | When | What happens |
+|---|---|---|
+| **speculate** | arguments are literal, purely computable, or resolved from an earlier call | Started as soon as its inputs exist — possibly while the model is still writing |
+| **defer** | the tool has side effects, or sits under a predicate that cannot be resolved | Runs only when execution actually reaches it |
+| **refuse** | an argument depends on something untrusted — `process`, `Math.random`, `Date.now`, filesystem reads, or any identifier that cannot be classified | Never speculated. **Still executes**, in order. Refusal governs *earliness*, never whether a call runs |
+
+Taint is transitive. `writeFile` and `notify` are never speculated regardless of their
+arguments, because you cannot un-write a file or un-send a message if the branch turns out not
+to be taken.
+
+## See it
+
+<p align="center">
+  <img src="docs/media/waterfall.png" alt="The execution waterfall: four agent calls beginning inside the indigo generation band, a grey serial-counterfactual strip stretching far beyond them, and headline numbers reading 4623 ms wall clock against 21716 ms if serial." width="900">
+</p>
+
+<p align="center"><b>Four calls, all started before the plan finished being written.</b><br>
+<sub>The indigo band is the model still generating. Every green bar begins inside it. The grey
+strip beneath is the same plan laid out serially — the overhang is the saving.
+<b>4,623 ms against 21,716 ms, with 9,164 ms of tool work done during generation.</b></sub></p>
+
+<table>
+<tr>
+<td width="50%"><img src="docs/media/compare.png" alt="The same plan replayed serially beneath the original, both on a shared time axis: four overlapping bars above finishing near 9 seconds, four sequential bars below finishing near 20"></td>
+<td width="50%"><img src="docs/media/denial.png" alt="A plan where a notify call under a tainted predicate is marked defer, with the reason and source line"></td>
+</tr>
+<tr>
+<td><b>Compare replays the same plan serially.</b> Above, four calls overlapping and done by
+about nine seconds; below, the same four as a staircase reaching twenty. One shared axis, so the
+difference is a length rather than a claim. Every number is rendered from the audit ledger — none
+of it is annotated afterwards.</td>
+<td><b>A deferral names its reason and its line.</b> <code>notify</code> under a predicate the
+analyzer cannot resolve reads <i>"side-effecting tool under unresolved predicate at line 3"</i>,
+with the source position, its dependency, and <code>Worker: Not assigned</code>. It runs only if
+execution reaches it. Being fast would have been the wrong answer here, and the layer worked that
+out without being asked.</td>
+</tr>
+</table>
+
+## Where the speedup comes from
+
+Two independent mechanisms, measured separately because they answer different questions.
+
+| | Mechanism | Preconditions |
+|---|---|---|
+| **Execution overlap** | Independent calls run concurrently even though the program wrote them sequentially | None |
+| **Generation overlap** | Calls start while the model is still writing the rest of the plan | The generation contract below |
+
+**The generation contract.** The eager window is the time between the last call becoming
+parseable and generation finishing. Two changes create it:
+
+- `thinking: {"type": "disabled"}` for the planner. Writing six structured tool calls is
+  decomposition, not reasoning. Measured: first code token **26.9 s → 0.43 s**, output tokens
+  **2248 → 338**, and protocol adherence went from 0/3 valid calls to 3/3. Reasoning stays on
+  in the sub-agents, where the actual work happens.
+- **Calls before prose.** The model emits `PLAN_BEGIN`, the calls, `PLAN_END`, and only then
+  its rationale — which is written while the calls are already executing.
+
+Together these took the usable window from **0.46 s to 8.82 s**.
+
+## Measured results
+
+Five plan shapes, three repetitions each, n=15 per arm, against a live model.
+
+| shape | scheduler alone | with speculation | eager marginal |
+|---|---|---|---|
+| fan-out (4 independent) | 3.16× | **4.94×** | 1.56× |
+| loop (3, unrolled) | 1.95× | **3.38×** | 1.74× |
+| mixed (3 + 1 dependent) | 2.14× | **3.27×** | 1.53× |
+| two independent | 1.71× | **2.73×** | 1.59× |
+| **median** | **1.86×** | **3.27×** | **1.6–1.8×** |
+
+Median **1,104 ms** of critical-path head start and **4,079 ms** of tool work executed during
+generation.
+
+**Two results worth more than the median.** `fan-out-4` reached **4.94× on a four-call plan**
+— above the arithmetic ceiling of 4× for pure parallelism, which is only possible because work
+began before the plan finished being written. And on a **genuine dependency chain**, where
+concurrency can contribute exactly nothing and correctly reports **1.00×**, speculation still
+moved **2,208 ms** of work into the generation window.
+
+## Run it
+
+Requires **Node 22+**, **Docker** (or Colima/Podman), and a **BytePlus ModelArk** API key.
 
 ```bash
-npm run check
-terraform fmt -check -recursive deploy/volcengine
-docker compose config
+npm install
+export ARK_API_KEY=<your ap-southeast Ark model key>
+export ARK_MODEL=dola-seed-2-1-turbo-260628
+export ARK_BASE_URL=https://ark.ap-southeast.bytepluses.com/api/v3
+npm run poc
 ```
 
-## Documentation
+Then open **http://127.0.0.1:3000**, create an Agent, and expand **Plans** below the
+Playground.
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Local POC](docs/LOCAL_POC.md)
-- [Deployment](docs/DEPLOYMENT.md)
-- [Hackathon extension guide](docs/HACKATHON_EXTENSION_GUIDE.md)
-- [Security policy](SECURITY.md)
-- [Contributing](CONTRIBUTING.md)
+> **Two things that will cost you an hour otherwise.**
+> Nothing in this repository reads `.env` — there is no dotenv and no `--env-file`, so the
+> variables must be exported into the real environment. And `ARK_BASE_URL` must be the
+> **international** BytePlus endpoint above; the starter kit ships the China-domestic
+> Volcengine URL, which will not authenticate with a BytePlus key. API keys are region-scoped.
+
+If port 3000 is taken, `PORT=3100 PUBLIC_PORT=3100 npm run poc`.
+
+```bash
+npm run check     # typecheck + 119 tests + both production builds
+```
+
+## Demo steps
+
+1. Create an Agent from the sidebar and send it a task in the Playground — the baseline
+   platform is unchanged.
+2. Expand **Plans**, enter a goal such as *"research four independent drone subsystems, one
+   researcher agent call each"*, and press **Run plan** with **Speculation** ticked.
+3. The waterfall shows calls beginning **inside the generation band** — work running before
+   the model finished writing the plan.
+4. Press **Compare** to replay the same plan with speculation off, on a shared time axis.
+5. For the denial case, run a plan whose branch predicate reads a file and whose branch body
+   calls `notify`. The gate marks it `defer` with the reason and the source line, and the
+   notify log stays empty.
+6. The plan list, decision reasons and per-call provenance remain inspectable throughout.
+
+## Limitations
+
+- **The generation contract is a precondition for the speculative half only.** The scheduler
+  needs nothing and carries the larger share of the speedup. Present in that order.
+- `speedup` is `serialMs / wallClockMs` and measures **execution-phase** concurrency only. On a
+  strict dependency chain the generation saving is real and this metric still reads 1.00×.
+  Report it alongside `generationOverlapMs`, never merged into it.
+- **The plan language is a restricted subset.** Arbitrary JavaScript is refused, not executed.
+- **Speculation wastes work** when a plan is revised mid-generation. Discarded speculations are
+  counted and displayed rather than hidden.
+- **Adaptive concurrency has never fired in production.** Halve-on-throttle with additive
+  recovery is unit-tested against injected faults; no real provider throttle occurred during
+  measurement.
+- Five plan shapes, one model, one provider. *"Median 3.3× on this workload"* is supported.
+  *"eager PTC gives 3.3×"* is not.
+
+## Layout
+
+```
+apps/server/src/eptc/
+  tools.ts            registry; speculatable / sideEffectFree / deterministic
+  builtin-tools.ts    agent, readFile, grep, writeFile, notify
+  analyzer.ts         parse, classify, taint, loop unrolling, admission
+  plan-generator.ts   streaming generation, incremental speculation, phantom discard
+  ark-stream.ts       SSE client for the Responses API
+  plan-service.ts     scheduler, barriers, adaptive concurrency, audit
+  promise-store.ts    claim-or-run, keyed (tool, argsHash, occurrence)
+  worker-pool.ts      leases over platform Agents
+  retry.ts            error classification for backoff
+  redact.ts           secret redaction before persistence
+  mcp.ts              MCP server exposing plan() as a native tool
+apps/web/src/eptc/    waterfall panel and layout maths
+docs/ARCHITECTURE-EPTC.md   the one-page architecture, trust boundary, and data flow
+```
+
+## Built on
+
+The TikTok TechJam **Agent Launchpad** starter kit. Agent CRUD, lifecycle, Playground,
+persistence and Codex execution are the kit's and are unchanged; everything under
+`apps/server/src/eptc/` and `apps/web/src/eptc/` is this project.
+
+**Tools and services used:** TypeScript, Node 22, Fastify, React, Vite, Vitest, Zod, acorn,
+Docker, the OpenAI Codex CLI as the Agent runtime, and BytePlus ModelArk (Responses API) as the
+model provider.
 
 ## License
 
-[MIT](LICENSE)
+MIT — see [LICENSE](LICENSE).

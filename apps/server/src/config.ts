@@ -38,6 +38,9 @@ const envSchema = z.object({
     .max(128)
     .regex(/^[A-Za-z0-9._~-]*$/, "APP_AUTH_TOKEN must use URL-safe characters")
     .optional(),
+  PUBLIC_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  EPTC_MCP_ENABLED: z.enum(["true", "false"]).default("true"),
+  EPTC_MCP_URL: z.string().url().optional(),
   ARK_API_KEY: z.string().optional(),
   ARK_MODEL: z.string().optional(),
   ARK_BASE_URL: z
@@ -84,6 +87,9 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env) {
     containerUser: env.CONTAINER_USER?.trim() || defaultContainerUser,
     runtimeInstanceId: env.RUNTIME_INSTANCE_ID,
     authToken,
+    eptcMcpEnabled: env.EPTC_MCP_ENABLED === "true",
+    eptcMcpUrl:
+      env.EPTC_MCP_URL?.trim() || `http://host.docker.internal:${env.PUBLIC_PORT}/api/eptc/mcp`,
     arkApiKey: env.ARK_API_KEY?.trim() ?? "",
     arkModel: env.ARK_MODEL?.trim() ?? "",
     arkBaseUrl: env.ARK_BASE_URL.replace(/\/+$/, ""),
@@ -114,6 +120,14 @@ export async function writeCodexConfig(config: AppConfig): Promise<void> {
     'wire_api = "responses"',
     "requires_openai_auth = false",
     "",
+    ...(config.eptcMcpEnabled
+      ? [
+          "[mcp_servers.eptc]",
+          "url = " + JSON.stringify(config.eptcMcpUrl),
+          ...(config.authToken ? ['bearer_token_env_var = "APP_AUTH_TOKEN"'] : []),
+          "",
+        ]
+      : []),
   ].join("\n");
   await writeFile(path.join(config.codexHome, "config.toml"), toml, {
     encoding: "utf8",

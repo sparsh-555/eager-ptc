@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, setAuthToken } from "./api";
+import { EptcPanel } from "./eptc/EptcPanel";
 import type { Agent, AgentRun, Message, SystemInfo } from "./types";
 
 const starterPrompts = [
@@ -582,6 +583,7 @@ export default function App() {
                 </div>
               </form>
             </section>
+            <EptcPanel agentId={selected.id} />
           </>
         ) : (
           <div className="no-agent">

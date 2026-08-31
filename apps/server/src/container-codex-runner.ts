@@ -56,6 +56,8 @@ export function buildContainerRunArgs(
     ...(engineName === "podman" ? ["--userns", "keep-id"] : []),
     "--network",
     "bridge",
+    "--add-host",
+    "host.docker.internal:host-gateway",
     "--security-opt",
     "no-new-privileges",
     "--cap-drop",
