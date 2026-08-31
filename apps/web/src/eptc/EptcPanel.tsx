@@ -22,6 +22,12 @@ function formatTime(value: string): string {
   }).format(date);
 }
 
+/** Waterfall convention: print the duration beside every bar, in a unit the eye can compare. */
+function formatMs(ms: number): string {
+  if (ms < 1000) return Math.round(ms) + " ms";
+  return (ms / 1000).toFixed(ms < 10000 ? 2 : 1) + " s";
+}
+
 function outcomeColor(call: EptcCall): string {
   if (call.decision === "speculate" && call.outcome === "not_run") return "#b9781d";
   if (call.outcome === "used") return "#33906d";
@@ -56,7 +62,7 @@ function Waterfall({
     label: Math.round(fraction * layout.timeSpanMs) + " ms",
   }));
   const serialRowY = chartTop + Math.max(1, layout.rows.length) * rowHeight;
-  const height = serialRowY + serialRowHeight + 24;
+  const height = serialRowY + serialRowHeight + 44;
   const generationWidth = Math.min(layout.contentWidth, plan.totals.generationMs / layout.timeSpanMs * chartWidth);
 
   return (
@@ -66,11 +72,18 @@ function Waterfall({
         <svg
           className="eptc-waterfall-svg"
           width="100%"
-          style={{ minWidth: chartLeft + layout.contentWidth + 28 }}
-          viewBox={`0 0 ${chartLeft + layout.contentWidth + 28} ${height}`}
+          style={{ minWidth: chartLeft + layout.contentWidth + 96 }}
+          viewBox={`0 0 ${chartLeft + layout.contentWidth + 96} ${height}`}
           role="img"
           aria-label={`${label} waterfall showing ${plan.calls.length} calls`}
         >
+          <defs>
+            {/* Hatched so the counterfactual reads as a projection rather than measured work. */}
+            <pattern id="eptc-projection-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="7" height="7" fill="#efecff" />
+              <line x1="0" y1="0" x2="0" y2="7" stroke="#8b7ac9" strokeWidth="3.5" />
+            </pattern>
+          </defs>
           {plan.totals.generationMs > 0 && (
             <g>
               <rect x={chartLeft} y={34} width={generationWidth} height={height - 34} fill="#efecff" />
@@ -112,21 +125,32 @@ function Waterfall({
                   <rect x={chartLeft + row.leadingStart} y={y + 16} width={row.leadingWidth} height={5} rx={2} className="eptc-leading-bar" />
                 )}
                 <rect x={chartLeft + row.start} y={y + 12} width={row.width} height={21} rx={4} fill={outcomeColor(row.call)} />
-                <text x={chartLeft + row.start + 6} y={y + 27} className="eptc-bar-label">{row.call.outcome}</text>
+                {row.width > 46 && <text x={chartLeft + row.start + 6} y={y + 27} className="eptc-bar-label">{row.call.outcome}</text>}
+                <text x={chartLeft + row.start + row.width + 7} y={y + 27} className="eptc-bar-duration">{formatMs(row.call.workMs)}</text>
+                <title>{`${row.call.tool} · ${row.call.decision} · ${formatMs(row.call.workMs)} · ${row.call.outcome}`}</title>
               </g>
             );
           })}
           {layout.rows.length > 0 && (
             <g className="eptc-serial-strip">
-              <text x={8} y={serialRowY + 25} className="eptc-serial-label">if run serially</text>
+              <text x={8} y={serialRowY + 21} className="eptc-serial-label">if run serially</text>
+              <text x={8} y={serialRowY + 36} className="eptc-serial-caption">projection</text>
               {layout.ghostSegments.map((segment, index) => (
-                <rect key={index} x={chartLeft + segment.start} y={serialRowY + 12} width={segment.width} height={14} rx={3} className="eptc-ghost-bar" />
+                <rect key={index} x={chartLeft + segment.start} y={serialRowY + 10} width={segment.width} height={18} rx={3} className="eptc-ghost-bar" />
               ))}
+              <text x={chartLeft + layout.ghostSegments[0].start + layout.ghostTotalWidth} y={serialRowY + 4} textAnchor="end" className="eptc-bar-duration">{formatMs(plan.totals.serialMs)}</text>
+              <text x={chartLeft + layout.ghostSegments[0].start} y={serialRowY + 42} className="eptc-serial-caption">cannot start until the plan is written</text>
             </g>
           )}
           {layout.rows.length === 0 && <text x={chartLeft} y={chartTop + 24} className="eptc-svg-label">No calls were produced for this plan.</text>}
         </svg>
       </div>
+      <ul className="eptc-legend">
+        <li><span className="eptc-swatch eptc-swatch-generation" />model still writing the plan</li>
+        <li><span className="eptc-swatch eptc-swatch-used" />call ran, result used</li>
+        <li><span className="eptc-swatch eptc-swatch-held" />held back by the gate</li>
+        <li><span className="eptc-swatch eptc-swatch-projection" />the same calls, run one after another</li>
+      </ul>
     </section>
   );
 }
@@ -158,6 +182,7 @@ export function EptcPanel({ agentId }: { agentId: string }) {
   const [speculation, setSpeculation] = useState(true);
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
+  const [liveTarget, setLiveTarget] = useState<"plan" | "comparison" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadPlans = useCallback(async () => {
@@ -201,6 +226,7 @@ export function EptcPanel({ agentId }: { agentId: string }) {
     event.preventDefault();
     if (!goal.trim()) return;
     setRunning(true);
+    setLiveTarget("plan");
     setError(null);
     setComparisonPlan(null);
     setSelectedCall(null);
@@ -211,6 +237,7 @@ export function EptcPanel({ agentId }: { agentId: string }) {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
+      setLiveTarget(null);
       setRunning(false);
     }
   };
@@ -218,6 +245,7 @@ export function EptcPanel({ agentId }: { agentId: string }) {
   const comparePlan = async () => {
     if (!selectedPlan) return;
     setRunning(true);
+    setLiveTarget("comparison");
     setError(null);
     try {
       const currentMode = selectedPlan.totals.maxConcurrent > 1 ? "concurrent" : "serial";
@@ -226,9 +254,30 @@ export function EptcPanel({ agentId }: { agentId: string }) {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
+      setLiveTarget(null);
       setRunning(false);
     }
   };
+
+  // The server persists each call as it settles, so poll while a run is in flight and draw the
+  // waterfall as it fills rather than only once the request returns.
+  useEffect(() => {
+    if (!liveTarget) return;
+    const knownIds = new Set(plans.map((plan) => plan.id));
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      void api.listPlans(agentId).then(({ plans: latest }) => {
+        const inFlight = latest.find((plan) => !knownIds.has(plan.id));
+        if (cancelled || !inFlight) return;
+        if (liveTarget === "plan") setSelectedPlan(inFlight);
+        else setComparisonPlan(inFlight);
+      }).catch(() => undefined);
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [liveTarget, agentId, plans]);
 
   const sharedSpan = useMemo(() => {
     if (!selectedPlan || !comparisonPlan) return undefined;

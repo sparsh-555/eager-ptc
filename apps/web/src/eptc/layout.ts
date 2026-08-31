@@ -26,7 +26,8 @@ export interface WaterfallLayout {
   contentWidth: number;
 }
 
-const minimumBarWidth = 1;
+/** Wide enough that a millisecond-scale tool still reads as a bar next to a slow one. */
+const minimumBarWidth = 3;
 
 function timestamp(value: string | number | null): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -58,7 +59,12 @@ export function layoutWaterfall(
     return parsed === null ? null : Math.max(0, parsed - executionOrigin);
   };
   const ends = plan.calls.map((call) => normalize(call.endedAt)).filter((value): value is number => value !== null);
-  const measuredSpan = Math.max(generationMs, ...ends, 0);
+  // A serial run could not start executing until the plan was finished being written, so the
+  // counterfactual begins at the end of generation rather than at zero.
+  const serialMs = Math.max(0, plan.totals.serialMs);
+  // The strip is `speedup` times longer than the concurrent run, so scaling to the concurrent
+  // span alone pushes the overhang off-screen exactly when the result is best.
+  const measuredSpan = Math.max(generationMs + serialMs, ...ends, 0);
   const timeSpanMs = Math.max(1, sharedTimeSpanMs ?? measuredSpan);
   const scale = chartWidth / timeSpanMs;
   const rows = plan.calls.map((call) => {
@@ -89,8 +95,8 @@ export function layoutWaterfall(
       toX: row.start,
     }];
   }));
-  const ghostTotalWidth = Math.max(0, plan.totals.serialMs) * scale;
-  let serialCursor = 0;
+  const ghostTotalWidth = serialMs * scale;
+  let serialCursor = generationMs;
   const ghostSegments = plan.calls.map((call) => {
     const segment = { start: serialCursor * scale, width: Math.max(0, call.workMs * scale) };
     serialCursor += Math.max(0, call.workMs);
@@ -102,6 +108,6 @@ export function layoutWaterfall(
     timeSpanMs,
     ghostTotalWidth,
     ghostSegments,
-    contentWidth: Math.max(chartWidth, ghostTotalWidth),
+    contentWidth: Math.max(chartWidth, (generationMs + serialMs) * scale),
   };
 }

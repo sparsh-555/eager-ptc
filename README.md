@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img alt="112 server + 7 web tests" src="https://img.shields.io/badge/tests-119%20passing-33906d?style=flat-square&labelColor=20211f">
+  <img alt="112 server + 10 web tests" src="https://img.shields.io/badge/tests-122%20passing-33906d?style=flat-square&labelColor=20211f">
   <img alt="TypeScript" src="https://img.shields.io/badge/typescript-5-6954d9?style=flat-square&labelColor=20211f">
   <img alt="Node 22+" src="https://img.shields.io/badge/node-22%2B-6954d9?style=flat-square&labelColor=20211f">
   <img alt="median 3.27x" src="https://img.shields.io/badge/median-3.27%C3%97%20faster-33906d?style=flat-square&labelColor=20211f">
@@ -98,29 +98,29 @@ to be taken.
 ## See it
 
 <p align="center">
-  <img src="docs/media/waterfall.png" alt="The execution waterfall: four agent calls beginning inside the indigo generation band, a grey serial-counterfactual strip stretching far beyond them, and headline numbers reading 4623 ms wall clock against 21716 ms if serial." width="900">
+  <img src="docs/media/waterfall.png" alt="The execution waterfall: readFile, grep and five agent calls all beginning inside the indigo generation band, each labelled with its duration, above a hatched projection strip that starts where generation ends and runs to 33.3 seconds" width="900">
 </p>
 
-<p align="center"><b>Four calls, all started before the plan finished being written.</b><br>
-<sub>The indigo band is the model still generating. Every green bar begins inside it. The grey
-strip beneath is the same plan laid out serially — the overhang is the saving.
-<b>4,623 ms against 21,716 ms, with 9,164 ms of tool work done during generation.</b></sub></p>
+<p align="center"><b>Seven calls across three tools, every one of them started before the plan finished being written.</b><br>
+<sub>The indigo band is the model still generating; every bar begins inside it. The hatched strip is
+a projection, not measured work: the same calls laid end to end, starting where generation ends
+because without speculation nothing can run until the plan exists.
+<b>6,556 ms against 33,317 ms of work, with 11,910 ms of it executed during generation.</b></sub></p>
 
 <table>
 <tr>
-<td width="50%"><img src="docs/media/compare.png" alt="The same plan replayed serially beneath the original, both on a shared time axis: four overlapping bars above finishing near 9 seconds, four sequential bars below finishing near 20"></td>
-<td width="50%"><img src="docs/media/denial.png" alt="A plan where a notify call under a tainted predicate is marked defer, with the reason and source line"></td>
+<td width="50%"><img src="docs/media/compare.png" alt="The same plan replayed serially beneath the original on a shared axis: bars bunched at the left above, a descending staircase below" width="440"></td>
+<td width="50%"><img src="docs/media/denial.png" alt="A plan where a notify call is marked defer, with its reason, argument class and source position shown in a detail panel" width="440"></td>
 </tr>
 <tr>
-<td><b>Compare replays the same plan serially.</b> Above, four calls overlapping and done by
-about nine seconds; below, the same four as a staircase reaching twenty. One shared axis, so the
-difference is a length rather than a claim. Every number is rendered from the audit ledger — none
-of it is annotated afterwards.</td>
-<td><b>A deferral names its reason and its line.</b> <code>notify</code> under a predicate the
-analyzer cannot resolve reads <i>"side-effecting tool under unresolved predicate at line 3"</i>,
-with the source position, its dependency, and <code>Worker: Not assigned</code>. It runs only if
-execution reaches it. Being fast would have been the wrong answer here, and the layer worked that
-out without being asked.</td>
+<td><b>Compare replays the plan for real.</b> The hatched strip is arithmetic; this is a measured
+serial run on the same axis. Above, everything overlapping and done in 6,556 ms. Below, the same
+calls as a staircase taking 13,785 ms. The two serial figures differ because an agent turn is not
+deterministic in effort, which is exactly why the measured run is worth having.</td>
+<td><b>A held call names its reason and its line.</b> <code>notify</code> is registered as
+non-speculatable, so the gate refuses to start it early and says so, with the argument class, the
+source position and <code>Worker: Not assigned</code>. It still runs when execution reaches it.
+Refusal governs earliness, not whether a call happens.</td>
 </tr>
 </table>
 
@@ -190,21 +190,31 @@ Playground.
 If port 3000 is taken, `PORT=3100 PUBLIC_PORT=3100 npm run poc`.
 
 ```bash
-npm run check     # typecheck + 119 tests + both production builds
+npm run check     # typecheck + 122 tests + both production builds
 ```
 
 ## Demo steps
 
-1. Create an Agent from the sidebar and send it a task in the Playground — the baseline
-   platform is unchanged.
-2. Expand **Plans**, enter a goal such as *"research four independent drone subsystems, one
-   researcher agent call each"*, and press **Run plan** with **Speculation** ticked.
-3. The waterfall shows calls beginning **inside the generation band** — work running before
-   the model finished writing the plan.
-4. Press **Compare** to replay the same plan with speculation off, on a shared time axis.
-5. For the denial case, run a plan whose branch predicate reads a file and whose branch body
-   calls `notify`. The gate marks it `defer` with the reason and the source line, and the
-   notify log stays empty.
+1. Create an Agent from the sidebar and send it a task in the Playground — the baseline platform
+   is unchanged. Ask it to write a `notes.txt` containing a few `TODO:` lines and a `Deadline:`
+   line; the file tools read from the selected Agent's workspace, so the plans below need it.
+2. Expand **Plans** and run, with **Speculation** ticked:
+
+   > Read notes.txt and summarise it. Separately, search notes.txt for TODO. Separately, ask four
+   > sub-agents to each define one term in a single short sentence: vector database, agent memory,
+   > tool routing, prompt caching.
+
+   Bounding each sub-agent to one sentence matters. `agent()` is a full Codex turn, so an
+   open-ended prompt gives 60–90 s per call and the generation band shrinks to a sliver of the
+   chart. Run it twice; the first turn on each worker pays container startup.
+3. The waterfall shows every call beginning **inside the indigo generation band** — work running
+   before the model had finished writing the plan — with each call's duration beside its bar.
+4. Press **Compare** to replay the same plan serially and draw both on one axis. This re-executes
+   for real, so it takes about as long as the `if serial` figure on screen.
+5. For the denial case, run *"Read notes.txt, and if it mentions a deadline, notify the team on the
+   releases channel about it."* `notify` is registered non-speculatable, so the gate marks it
+   `defer`, names its reason and source position, and the notify log stays empty. It still runs
+   when execution reaches it.
 6. The plan list, decision reasons and per-call provenance remain inspectable throughout.
 
 ## Limitations

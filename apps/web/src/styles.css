@@ -1207,8 +1207,20 @@ textarea:focus {
 }
 
 .eptc-ghost-bar {
-  fill: #acaea5;
-  opacity: 0.42;
+  fill: url(#eptc-projection-hatch);
+  stroke: #6b5aa8;
+  stroke-width: 1;
+}
+
+.eptc-bar-duration {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  fill: #777870;
+}
+
+.eptc-serial-caption {
+  font-size: 10px;
+  fill: #9a9b93;
 }
 
 .eptc-leading-bar {
@@ -1415,4 +1427,36 @@ textarea:focus {
   .eptc-call-detail dl {
     grid-template-columns: 1fr;
   }
+}
+
+.eptc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted, #777870);
+}
+
+.eptc-legend li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.eptc-swatch {
+  width: 15px;
+  height: 11px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.eptc-swatch-generation { background: #efecff; border: 1px solid #cfc6f5; }
+.eptc-swatch-used { background: #33906d; }
+.eptc-swatch-held { background: #e5a54a; }
+.eptc-swatch-projection {
+  border: 1px solid #6b5aa8;
+  background: repeating-linear-gradient(45deg, #efecff 0 2px, #8b7ac9 2px 5px);
 }

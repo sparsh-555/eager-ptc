@@ -52,7 +52,7 @@ function call(id: string, startedAt: number | null, endedAt: number | null, over
 
 describe("layoutWaterfall", () => {
   it("positions bars proportionally to the plan time span", () => {
-    const layout = layoutWaterfall(planWith([call("a", 25, 75), call("extent", 0, 100)], { wallClockMs: 100 }), 1000);
+    const layout = layoutWaterfall(planWith([call("a", 25, 75), call("extent", 0, 100)], { wallClockMs: 100, serialMs: 100 }), 1000);
     expect(layout.rows[0]).toMatchObject({ start: 250, width: 500 });
   });
 
@@ -81,12 +81,33 @@ describe("layoutWaterfall", () => {
 
   it("does not divide by zero for one instantaneous call", () => {
     const layout = layoutWaterfall(planWith([call("a", 0, 0)], { wallClockMs: 0, serialMs: 0 }), 1000);
-    expect(layout.rows[0]).toMatchObject({ start: 0, width: 1 });
+    expect(layout.rows[0]).toMatchObject({ start: 0, width: 3 });
     expect(Number.isFinite(layout.rows[0].start)).toBe(true);
   });
 
+  it("fits the serial ghost strip inside the chart so the overhang never needs scrolling", () => {
+    // Concurrent run finishes at 100ms; run serially the same work would take 400ms.
+    const layout = layoutWaterfall(planWith([call("a", 0, 100), call("b", 0, 100)], { wallClockMs: 100, serialMs: 400 }), 1000);
+    expect(layout.ghostTotalWidth).toBeLessThanOrEqual(1000);
+    expect(layout.contentWidth).toBe(1000);
+    expect(layout.rows[0].width).toBeLessThan(1000);
+  });
+
+  it("keeps a millisecond-scale call visible beside a slow one", () => {
+    const layout = layoutWaterfall(planWith([call("quick", 0, 5), call("slow", 0, 20000)], { serialMs: 20005 }), 1000);
+    expect(layout.rows[0].width).toBeGreaterThanOrEqual(3);
+  });
+
+  it("starts the serial counterfactual after generation, not at zero", () => {
+    // Generation takes 100ms; a serial run could not begin executing until it finished.
+    const layout = layoutWaterfall(planWith([call("a", 100, 300)], { generationMs: 100, serialMs: 200 }), 900);
+    // span = generationMs + serialMs = 300, so 100ms of generation is a third of the chart.
+    expect(layout.ghostSegments[0].start).toBeCloseTo(300, 5);
+    expect(layout.ghostSegments[0].start + layout.ghostSegments[0].width).toBeCloseTo(900, 5);
+  });
+
   it("connects dependency edges to their source and target rows", () => {
-    const layout = layoutWaterfall(planWith([call("source", 10, 40), call("target", 50, 80, { dependsOn: ["source"] })]), 1000);
+    const layout = layoutWaterfall(planWith([call("source", 10, 40), call("target", 50, 80, { dependsOn: ["source"] })], { serialMs: 80 }), 1000);
     expect(layout.edges).toEqual([{ fromId: "source", toId: "target", fromRow: 0, toRow: 1, fromX: 500, toX: 625 }]);
   });
 });
