@@ -310,22 +310,38 @@ export function EptcPanel({ agentId }: { agentId: string }) {
   // The server persists each call as it settles, so poll while a run is in flight and draw the
   // waterfall as it fills rather than only once the request returns.
   useEffect(() => {
-    if (!liveTarget) return;
+    if (!expanded) return;
     const knownIds = new Set(plans.map((plan) => plan.id));
     let cancelled = false;
     const timer = window.setInterval(() => {
       void api.listPlans(agentId).then(({ plans: latest }) => {
-        const inFlight = latest.find((plan) => !knownIds.has(plan.id));
-        if (cancelled || !inFlight) return;
-        if (liveTarget === "plan") setSelectedPlan(inFlight);
-        else setComparisonPlan(inFlight);
+        if (cancelled) return;
+
+        if (liveTarget) {
+          const inFlight = latest.find((plan) => !knownIds.has(plan.id));
+          if (!inFlight) return;
+          if (liveTarget === "plan") setSelectedPlan(inFlight);
+          else setComparisonPlan(inFlight);
+          return;
+        }
+
+        const refreshedPlans = [...latest].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+        const newestPlan = refreshedPlans[0];
+        if (!newestPlan) return;
+
+        if (!knownIds.has(newestPlan.id)) {
+          setPlans(refreshedPlans);
+          setSelectedPlan(newestPlan);
+        } else {
+          setSelectedPlan((current) => current?.id === newestPlan.id ? newestPlan : current);
+        }
       }).catch(() => undefined);
-    }, 400);
+    }, liveTarget ? 400 : 1500);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [liveTarget, agentId, plans]);
+  }, [expanded, liveTarget, agentId, plans]);
 
   const sharedSpan = useMemo(() => {
     if (!selectedPlan || !comparisonPlan) return undefined;
