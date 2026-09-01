@@ -326,11 +326,11 @@ export function EptcPanel({ agentId }: { agentId: string }) {
         }
 
         const refreshedPlans = [...latest].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+        setPlans(refreshedPlans);
         const newestPlan = refreshedPlans[0];
         if (!newestPlan) return;
 
         if (!knownIds.has(newestPlan.id)) {
-          setPlans(refreshedPlans);
           setSelectedPlan(newestPlan);
         } else {
           setSelectedPlan((current) => current?.id === newestPlan.id ? newestPlan : current);
