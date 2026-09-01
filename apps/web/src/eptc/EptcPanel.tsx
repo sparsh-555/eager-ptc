@@ -330,7 +330,7 @@ export function EptcPanel({ agentId }: { agentId: string }) {
         const newestPlan = refreshedPlans[0];
         if (!newestPlan) return;
 
-        if (!knownIds.has(newestPlan.id)) {
+        if (!comparisonPlan && !knownIds.has(newestPlan.id)) {
           setSelectedPlan(newestPlan);
         } else {
           setSelectedPlan((current) => current?.id === newestPlan.id ? newestPlan : current);
@@ -341,7 +341,7 @@ export function EptcPanel({ agentId }: { agentId: string }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [expanded, liveTarget, agentId, plans]);
+  }, [expanded, liveTarget, agentId, plans, comparisonPlan]);
 
   const sharedSpan = useMemo(() => {
     if (!selectedPlan || !comparisonPlan) return undefined;
